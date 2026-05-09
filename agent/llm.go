@@ -34,7 +34,9 @@ Provide a step-by-step implementation plan covering:
 
 	var msg anthropic.Message
 	for stream.Next() {
-		msg.Accumulate(stream.Current())
+		if err := msg.Accumulate(stream.Current()); err != nil {
+			return "", fmt.Errorf("GenerateImplementationPlan: accumulate: %w", err)
+		}
 	}
 	if err := stream.Err(); err != nil {
 		return "", fmt.Errorf("GenerateImplementationPlan: %w", err)
@@ -75,7 +77,9 @@ Provide a step-by-step fix plan covering:
 
 	var msg anthropic.Message
 	for stream.Next() {
-		msg.Accumulate(stream.Current())
+		if err := msg.Accumulate(stream.Current()); err != nil {
+			return "", fmt.Errorf("GenerateFixPlan: accumulate: %w", err)
+		}
 	}
 	if err := stream.Err(); err != nil {
 		return "", fmt.Errorf("GenerateFixPlan: %w", err)
