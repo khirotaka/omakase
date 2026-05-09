@@ -68,6 +68,21 @@ func poll(ctx context.Context, redis *RedisClient) error {
 		"repo_name", task.RepoName,
 	)
 
-	// TODO: dispatch to orchestrator (later feature)
+	switch task.Type {
+	case TaskTypeIssue:
+		sess, err := CreateSession(ctx, redis, task.IssueNumber)
+		if err != nil {
+			return fmt.Errorf("poll: create session: %w", err)
+		}
+		slog.Info("session created",
+			"issue_number", sess.IssueNumber,
+			"status", sess.Status,
+			"branch", sess.BranchName,
+		)
+		// TODO: dispatch to orchestrator for implementation (later feature)
+	case TaskTypeReview:
+		// TODO: handle review task (later feature)
+	}
+
 	return nil
 }
