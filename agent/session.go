@@ -22,11 +22,12 @@ const (
 
 // AgentSession tracks the state of an agent working on a GitHub issue.
 type AgentSession struct {
-	IssueNumber int           `json:"issueNumber"`
-	Status      SessionStatus `json:"status"`
-	BranchName  string        `json:"branchName"`
-	PRNumber    int           `json:"prNumber,omitempty"`
-	Iteration   int           `json:"iteration"`
+	IssueNumber   int           `json:"issueNumber"`
+	Status        SessionStatus `json:"status"`
+	BranchName    string        `json:"branchName"`
+	PRNumber      int           `json:"prNumber,omitempty"`
+	Iteration     int           `json:"iteration"`
+	GeneratedFile string        `json:"generatedFile,omitempty"` // repo-relative path of the LLM-generated file
 }
 
 func sessionKey(issueNumber int) string {

@@ -89,7 +89,9 @@ func handleIssueTask(ctx context.Context, cfg *Config, redis *RedisClient, task 
 		"status", sess.Status,
 		"branch", sess.BranchName,
 	)
-	// TODO: implement code via LLM + sandbox, then call CreatePR and transition to review_pending
+	if err := RunIssueCycle(ctx, cfg, redis, task, sess); err != nil {
+		return fmt.Errorf("handleIssueTask: %w", err)
+	}
 	return nil
 }
 
@@ -134,6 +136,8 @@ func handleReviewTask(ctx context.Context, cfg *Config, redis *RedisClient, task
 		"iteration", sess.Iteration,
 		"review_body_len", len(task.Body),
 	)
-	// TODO: run fix cycle via LLM + sandbox, then push and transition to done
+	if err := RunFixCycle(ctx, cfg, redis, task, sess); err != nil {
+		return fmt.Errorf("handleReviewTask: %w", err)
+	}
 	return nil
 }

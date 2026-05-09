@@ -82,7 +82,7 @@
       "Verify the session status transitions to review_pending",
       "Confirm prNumber is set in the session"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "state-management",
@@ -102,7 +102,7 @@
       "Complete the fix cycle without error",
       "Verify the session status is set to done"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "state-management",
@@ -143,7 +143,7 @@
       "Verify no error is returned",
       "Confirm a sandbox ID is assigned and logged"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
@@ -154,7 +154,7 @@
       "Verify the exit code is 0",
       "Call sb.Run with ls /workspace to confirm the repository contents are present"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
@@ -165,7 +165,7 @@
       "Verify no error is returned",
       "Confirm the file is present in the sandbox via sb.Run ls"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
@@ -177,7 +177,7 @@
       "Call sb.Run with mv {filename} pkg/",
       "Verify the file exists at pkg/{filename} via sb.Run ls pkg/"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
@@ -188,7 +188,7 @@
       "Call sb.Run with go build ./...",
       "Verify exit code is 0 and no build errors are logged"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
@@ -199,7 +199,7 @@
       "Call sb.Run with go test ./...",
       "Verify exit code is 0 and test output is captured in logs"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
@@ -212,7 +212,7 @@
       "Call sb.Run with git push origin agent/issue-{N}",
       "Verify the branch appears in the remote repository"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
@@ -223,7 +223,7 @@
       "Verify no error is returned",
       "Confirm the sandbox Pod is terminated in Kubernetes"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -266,7 +266,7 @@
       "Write the generated fix back to sandbox via sb.Write",
       "Verify build and tests pass after the fix"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -277,7 +277,7 @@
       "Call sb.Run with git push origin agent/issue-{N}",
       "Verify the existing open PR shows the new commit in GitHub"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "configuration",
