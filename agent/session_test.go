@@ -27,7 +27,7 @@ func newFakeRedisServer(t *testing.T) (*httptest.Server, map[string]string) {
 				_, _ = fmt.Fprint(w, `{"result":null}`)
 				return
 			}
-			resp, _ := json.Marshal(map[string]interface{}{"result": val})
+			resp, _ := json.Marshal(map[string]any{"result": val})
 			_, _ = w.Write(resp)
 			return
 		}
