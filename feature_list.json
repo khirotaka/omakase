@@ -1,0 +1,324 @@
+[
+  {
+    "category": "functional",
+    "description": "Orchestrator polls Redis queue at configured interval and receives new issue payloads",
+    "steps": [
+      "Set POLL_INTERVAL_SEC environment variable",
+      "Start the Agent Pod",
+      "Observe that the orchestrator calls RPOP on agent-queue every POLL_INTERVAL_SEC seconds",
+      "Verify a log entry is emitted each polling cycle even when the queue is empty"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "GitHub Actions workflow enqueues a new issue payload to Redis via LPUSH",
+    "steps": [
+      "Open a new GitHub Issue in the target repository",
+      "Verify the trigger-agent.yml workflow starts",
+      "Confirm an LPUSH is executed against agent-queue with type=issue",
+      "Confirm the payload contains issueNumber, repoOwner, repoName, and body"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Orchestrator dequeues an issue task from Redis using RPOP",
+    "steps": [
+      "Manually LPUSH a JSON task payload to agent-queue",
+      "Wait one polling cycle",
+      "Verify the orchestrator logs show the task was dequeued",
+      "Verify the queue is empty after dequeue"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Orchestrator enqueues a CodeRabbit review feedback payload to Redis",
+    "steps": [
+      "Trigger a pull_request_review_comment event from coderabbitai[bot]",
+      "Verify the trigger-agent.yml workflow starts with type=review",
+      "Confirm the payload is pushed to agent-queue with issueNumber and body fields",
+      "Verify the orchestrator dequeues and identifies it as a review task"
+    ],
+    "passes": false
+  },
+  {
+    "category": "state-management",
+    "description": "AgentSession is created in Redis with status=developing when a new issue task is dequeued",
+    "steps": [
+      "Dequeue an issue task",
+      "Query Redis for key session:{issueNumber}",
+      "Verify the session JSON contains status=developing, iteration=0, and branchName=agent/issue-{N}"
+    ],
+    "passes": false
+  },
+  {
+    "category": "state-management",
+    "description": "AgentSession can be read from Redis by issue number",
+    "steps": [
+      "Create a session in Redis manually via SET",
+      "Call the session read function with the corresponding issue number",
+      "Verify the returned struct matches the stored JSON"
+    ],
+    "passes": false
+  },
+  {
+    "category": "state-management",
+    "description": "AgentSession is updated in Redis when status transitions occur",
+    "steps": [
+      "Create a session with status=developing",
+      "Call the session update function with status=review_pending and a prNumber",
+      "Query Redis and confirm the new values are persisted",
+      "Verify the TTL is still set to 24 hours"
+    ],
+    "passes": false
+  },
+  {
+    "category": "state-management",
+    "description": "AgentSession transitions from developing to review_pending after PR is created",
+    "steps": [
+      "Process an issue task end-to-end through implementation and PR creation",
+      "Verify the session status transitions to review_pending",
+      "Confirm prNumber is set in the session"
+    ],
+    "passes": false
+  },
+  {
+    "category": "state-management",
+    "description": "AgentSession transitions from review_pending to fixing when a review task is dequeued",
+    "steps": [
+      "Create a session with status=review_pending",
+      "Dequeue a review task for the same issue number",
+      "Verify the session transitions to fixing and iteration increments by 1"
+    ],
+    "passes": false
+  },
+  {
+    "category": "state-management",
+    "description": "AgentSession transitions to done after a successful fix cycle",
+    "steps": [
+      "Create a session with status=fixing and iteration=1",
+      "Complete the fix cycle without error",
+      "Verify the session status is set to done"
+    ],
+    "passes": false
+  },
+  {
+    "category": "state-management",
+    "description": "AgentSession transitions to aborted when MAX_ITERATION is reached",
+    "steps": [
+      "Set MAX_ITERATION=2",
+      "Create a session with status=fixing and iteration=2",
+      "Trigger another review task for the same issue",
+      "Verify the session status is set to aborted and the iteration is not incremented further"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "LLM generates an implementation plan from an issue body via Anthropic API",
+    "steps": [
+      "Call the LLM function with a sample issue body",
+      "Verify the Anthropic API is called with the issue text in the prompt",
+      "Confirm the returned implementation plan is a non-empty string"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "LLM generates a fix plan from CodeRabbit review feedback and existing code",
+    "steps": [
+      "Call the LLM fix function with a sample review comment and code snippet",
+      "Verify the Anthropic API is called with both the feedback and the existing code",
+      "Confirm the returned fix plan is a non-empty string"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox is started and returns a usable session handle",
+    "steps": [
+      "Call the sandbox creation function",
+      "Verify no error is returned",
+      "Confirm a sandbox ID is assigned and logged"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox clones the target repository into /workspace",
+    "steps": [
+      "Start a sandbox session",
+      "Execute sb.Run with the git clone command",
+      "Verify the exit code is 0",
+      "Call sb.Run with ls /workspace to confirm the repository contents are present"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox writes a generated code file using sb.Write with filename only (no path)",
+    "steps": [
+      "Start a sandbox session",
+      "Call sb.Write with a filename containing no path separator and valid Go source content",
+      "Verify no error is returned",
+      "Confirm the file is present in the sandbox via sb.Run ls"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox moves a written file into a subdirectory using mkdir and mv commands",
+    "steps": [
+      "Start a sandbox session",
+      "Call sb.Run with mkdir -p pkg/",
+      "Call sb.Write with a filename only",
+      "Call sb.Run with mv {filename} pkg/",
+      "Verify the file exists at pkg/{filename} via sb.Run ls pkg/"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox builds the project with go build ./...",
+    "steps": [
+      "Clone the target repository into the sandbox",
+      "Write necessary implementation files",
+      "Call sb.Run with go build ./...",
+      "Verify exit code is 0 and no build errors are logged"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox runs the test suite with go test ./...",
+    "steps": [
+      "Clone the target repository into the sandbox",
+      "Write implementation files",
+      "Call sb.Run with go test ./...",
+      "Verify exit code is 0 and test output is captured in logs"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox commits and pushes to a feature branch",
+    "steps": [
+      "Clone the target repository",
+      "Write code and run build/test",
+      "Call sb.Run with git checkout -b agent/issue-{N}",
+      "Call sb.Run with git add . and git commit",
+      "Call sb.Run with git push origin agent/issue-{N}",
+      "Verify the branch appears in the remote repository"
+    ],
+    "passes": false
+  },
+  {
+    "category": "integration",
+    "description": "Sandbox session is closed with sb.Close() after processing completes",
+    "steps": [
+      "Complete a sandbox code execution workflow",
+      "Call sb.Close()",
+      "Verify no error is returned",
+      "Confirm the sandbox Pod is terminated in Kubernetes"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "GitHub PR is created for the feature branch via GitHub API",
+    "steps": [
+      "Push a feature branch to the target repository",
+      "Call the GitHub PR creation function with title, body, branch name, and base branch",
+      "Verify a PR is created in the repository",
+      "Confirm the returned PR number is stored in the session"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "GitHub PR body includes the issue number for automatic linking",
+    "steps": [
+      "Create a PR via the GitHub API function",
+      "Inspect the PR body",
+      "Verify it contains Closes #{issueNumber} or Fixes #{issueNumber}"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "CodeRabbit review comment is parsed and the feedback body is extracted",
+    "steps": [
+      "Feed a raw review task payload from Redis into the review parsing function",
+      "Verify the function returns the comment body without error",
+      "Confirm the issueNumber and prNumber are also extracted correctly"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Iterative fix loop passes review feedback and current code to the LLM and writes the fix to sandbox",
+    "steps": [
+      "Create a session in fixing state with iteration=1",
+      "Read existing code from sandbox via sb.Read",
+      "Call the LLM fix function with review feedback and existing code",
+      "Write the generated fix back to sandbox via sb.Write",
+      "Verify build and tests pass after the fix"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Iterative fix loop pushes updated code to the existing feature branch, updating the open PR",
+    "steps": [
+      "Complete a fix cycle in sandbox",
+      "Call sb.Run with git add . and git commit",
+      "Call sb.Run with git push origin agent/issue-{N}",
+      "Verify the existing open PR shows the new commit in GitHub"
+    ],
+    "passes": false
+  },
+  {
+    "category": "configuration",
+    "description": "MAX_ITERATION environment variable controls the maximum number of fix iterations",
+    "steps": [
+      "Set MAX_ITERATION=3",
+      "Start the orchestrator",
+      "Verify that on the 4th review task for the same session the orchestrator aborts instead of fixing"
+    ],
+    "passes": false
+  },
+  {
+    "category": "functional",
+    "description": "Orchestrator posts a comment on the GitHub Issue when MAX_ITERATION is exceeded",
+    "steps": [
+      "Set MAX_ITERATION=2",
+      "Trigger review tasks until iteration exceeds the limit",
+      "Verify a comment is posted to the GitHub Issue indicating the agent has aborted",
+      "Confirm the session status is set to aborted"
+    ],
+    "passes": false
+  },
+  {
+    "category": "configuration",
+    "description": "POLL_INTERVAL_SEC environment variable controls the Redis polling interval",
+    "steps": [
+      "Set POLL_INTERVAL_SEC=5",
+      "Start the orchestrator",
+      "Observe that polling occurs approximately every 5 seconds in logs",
+      "Verify default of 30 seconds is used when the variable is not set"
+    ],
+    "passes": false
+  },
+  {
+    "category": "configuration",
+    "description": "All required environment variables are validated at startup and the process exits with a clear error if any are missing",
+    "steps": [
+      "Start the orchestrator without setting ANTHROPIC_API_KEY",
+      "Verify the process exits immediately with a non-zero exit code",
+      "Confirm the error message identifies which variable is missing"
+    ],
+    "passes": false
+  }
+]

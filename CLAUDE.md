@@ -68,3 +68,36 @@ make deploy    # Agent Pod デプロイ
 make logs      # ログ確認
 make teardown  # クラスタ削除
 ```
+
+## feature_list.json
+
+`feature_list.json`（リポジトリルートに配置）はシステム全体の受け入れテスト仕様を管理する JSON ファイルです。
+
+### ファイル構造
+
+```json
+[
+  {
+    "category": "functional",
+    "description": "機能の概要説明",
+    "steps": [
+      "テストステップ 1",
+      "テストステップ 2"
+    ],
+    "passes": false
+  }
+]
+```
+
+### フィールド定義
+
+| フィールド | 型 | 説明 |
+| --- | --- | --- |
+| `category` | string | `"functional"` / `"integration"` / `"state-management"` / `"configuration"` のいずれか |
+| `description` | string | 検証する機能・動作の一文説明 |
+| `steps` | string[] | その機能を確認するための手順リスト |
+| `passes` | boolean | 実装完了・動作確認済みなら `true`、未実装または未検証なら `false` |
+
+### 実装完了時のルール
+
+ある機能の実装が完了したら、`feature_list.json` 内の対応するエントリの `passes` フィールドを `false` から `true` に更新すること。
