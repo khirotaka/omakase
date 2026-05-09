@@ -5,7 +5,7 @@ set -euo pipefail
 
 INPUT=$(cat)
 
-FILE_PATH=$(echo "$INPUT" | grep -o '"file_path":"[^"]*"' | head -1 | sed 's/"file_path":"//;s/"//')
+FILE_PATH=$(echo "$INPUT" | sed -n 's/.*"file_path"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1)
 
 if [[ "$FILE_PATH" != *.go ]]; then
   exit 0
