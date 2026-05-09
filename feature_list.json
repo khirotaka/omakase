@@ -319,6 +319,6 @@
       "Verify the process exits immediately with a non-zero exit code",
       "Confirm the error message identifies which variable is missing"
     ],
-    "passes": false
+    "passes": true
   }
 ]
