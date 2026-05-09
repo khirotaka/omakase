@@ -11,6 +11,7 @@ func setRequiredEnvVars(t *testing.T) {
 	t.Setenv("UPSTASH_REDIS_URL", "https://redis.example.com")
 	t.Setenv("UPSTASH_REDIS_TOKEN", "test-redis-token")
 	t.Setenv("GITHUB_TOKEN", "test-github-token")
+	t.Setenv("SANDBOX_TEMPLATE", "test-sandbox-template")
 }
 
 func TestLoadConfig_AllRequiredVarsSet(t *testing.T) {
@@ -32,6 +33,12 @@ func TestLoadConfig_AllRequiredVarsSet(t *testing.T) {
 	if cfg.GitHubToken != "test-github-token" {
 		t.Errorf("GitHubToken = %q, want %q", cfg.GitHubToken, "test-github-token")
 	}
+	if cfg.SandboxTemplate != "test-sandbox-template" {
+		t.Errorf("SandboxTemplate = %q, want %q", cfg.SandboxTemplate, "test-sandbox-template")
+	}
+	if cfg.SandboxNamespace != "default" {
+		t.Errorf("SandboxNamespace = %q, want %q", cfg.SandboxNamespace, "default")
+	}
 }
 
 func TestLoadConfig_MissingRequiredVar(t *testing.T) {
@@ -42,6 +49,7 @@ func TestLoadConfig_MissingRequiredVar(t *testing.T) {
 		{"UPSTASH_REDIS_URL"},
 		{"UPSTASH_REDIS_TOKEN"},
 		{"GITHUB_TOKEN"},
+		{"SANDBOX_TEMPLATE"},
 	}
 
 	for _, tt := range tests {
