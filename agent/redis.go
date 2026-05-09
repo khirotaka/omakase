@@ -38,11 +38,11 @@ type redisResponse struct {
 // SET stores value at key with an optional TTL (pass 0 for no expiry).
 // Uses the Upstash command-in-body format to safely handle JSON values.
 func (r *RedisClient) SET(ctx context.Context, key, value string, ttl time.Duration) error {
-	var cmd []interface{}
+	var cmd []any
 	if ttl > 0 {
-		cmd = []interface{}{"SET", key, value, "EX", int64(ttl.Seconds())}
+		cmd = []any{"SET", key, value, "EX", int64(ttl.Seconds())}
 	} else {
-		cmd = []interface{}{"SET", key, value}
+		cmd = []any{"SET", key, value}
 	}
 
 	body, err := json.Marshal(cmd)
