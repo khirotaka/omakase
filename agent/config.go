@@ -11,6 +11,8 @@ type Config struct {
 	UpstashRedisURL   string
 	UpstashRedisToken string
 	GitHubToken       string
+	SandboxTemplate   string
+	SandboxNamespace  string
 	PollIntervalSec   int
 	MaxIteration      int
 }
@@ -20,6 +22,7 @@ var requiredEnvVars = []string{
 	"UPSTASH_REDIS_URL",
 	"UPSTASH_REDIS_TOKEN",
 	"GITHUB_TOKEN",
+	"SANDBOX_TEMPLATE",
 }
 
 func loadConfig() (*Config, error) {
@@ -29,11 +32,18 @@ func loadConfig() (*Config, error) {
 		}
 	}
 
+	ns := os.Getenv("SANDBOX_NAMESPACE")
+	if ns == "" {
+		ns = "default"
+	}
+
 	return &Config{
 		AnthropicAPIKey:   os.Getenv("ANTHROPIC_API_KEY"),
 		UpstashRedisURL:   os.Getenv("UPSTASH_REDIS_URL"),
 		UpstashRedisToken: os.Getenv("UPSTASH_REDIS_TOKEN"),
 		GitHubToken:       os.Getenv("GITHUB_TOKEN"),
+		SandboxTemplate:   os.Getenv("SANDBOX_TEMPLATE"),
+		SandboxNamespace:  ns,
 		PollIntervalSec:   getEnvInt("POLL_INTERVAL_SEC", 30),
 		MaxIteration:      getEnvInt("MAX_ITERATION", 5),
 	}, nil

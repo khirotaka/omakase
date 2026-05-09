@@ -89,7 +89,9 @@ func handleIssueTask(ctx context.Context, cfg *Config, redis *RedisClient, task 
 		"status", sess.Status,
 		"branch", sess.BranchName,
 	)
-	// TODO: implement code via LLM + sandbox, then call CreatePR and transition to review_pending
+	if err := RunIssueCycle(ctx, cfg, redis, task, sess); err != nil {
+		return fmt.Errorf("handleIssueTask: %w", err)
+	}
 	return nil
 }
 
@@ -102,9 +104,21 @@ func handleReviewTask(ctx context.Context, cfg *Config, redis *RedisClient, task
 		return fmt.Errorf("handleReviewTask: no session found for issue %d", task.IssueNumber)
 	}
 
+	if sess.Status != StatusReviewPending {
+		return fmt.Errorf("handleReviewTask: invalid state %q for issue %d; expected %q",
+			sess.Status, task.IssueNumber, StatusReviewPending)
+	}
+
 	ghClient := newGitHubClient(ctx, cfg.GitHubToken)
 
-	if sess.Iteration >= cfg.MaxIteration {
+	// Always transition through fixing first (valid: review_pending → fixing → done/aborted).
+	sess.Status = StatusFixing
+	sess.Iteration++
+	if err := UpdateSession(ctx, redis, sess); err != nil {
+		return fmt.Errorf("handleReviewTask: update session to fixing: %w", err)
+	}
+
+	if sess.Iteration > cfg.MaxIteration {
 		sess.Status = StatusAborted
 		if uerr := UpdateSession(ctx, redis, sess); uerr != nil {
 			return fmt.Errorf("handleReviewTask: abort session: %w", uerr)
@@ -124,16 +138,20 @@ func handleReviewTask(ctx context.Context, cfg *Config, redis *RedisClient, task
 		return nil
 	}
 
-	sess.Status = StatusFixing
-	sess.Iteration++
-	if err := UpdateSession(ctx, redis, sess); err != nil {
-		return fmt.Errorf("handleReviewTask: update session to fixing: %w", err)
-	}
 	slog.Info("session transitioned to fixing",
 		"issue_number", sess.IssueNumber,
 		"iteration", sess.Iteration,
 		"review_body_len", len(task.Body),
 	)
-	// TODO: run fix cycle via LLM + sandbox, then push and transition to done
+	if err := RunFixCycle(ctx, cfg, redis, task, sess); err != nil {
+		// Restore to review_pending so the next review task can retry.
+		sess.Status = StatusReviewPending
+		if uerr := UpdateSession(ctx, redis, sess); uerr != nil {
+			slog.Error("failed to restore session to review_pending after fix cycle error",
+				"error", uerr, "issue_number", task.IssueNumber)
+			return fmt.Errorf("handleReviewTask: run fix cycle: %w; rollback failed: %v", err, uerr)
+		}
+		return fmt.Errorf("handleReviewTask: run fix cycle: %w", err)
+	}
 	return nil
 }
