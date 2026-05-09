@@ -1,0 +1,29 @@
+version: "2"
+
+linters:
+  enable:
+    - staticcheck
+    - gosec
+    - errcheck
+    - revive
+    - govet
+    - modernize
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+        - name: unused-parameter
+        - name: error-return
+
+formatters:
+  enable:
+    - gofumpt
+    - gci
+
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/khirotaka/omakase)
