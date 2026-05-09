@@ -38,17 +38,17 @@ type redisResponse struct {
 func (r *RedisClient) RPOP(ctx context.Context, key string) (string, error) {
 	url := fmt.Sprintf("%s/rpop/%s", r.baseURL, key)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
 	if err != nil {
 		return "", fmt.Errorf("redis RPOP: create request: %w", err)
 	}
 	req.Header.Set("Authorization", "Bearer "+r.token)
 
-	resp, err := r.httpClient.Do(req)
+	resp, err := r.httpClient.Do(req) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
 	if err != nil {
 		return "", fmt.Errorf("redis RPOP: http: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)

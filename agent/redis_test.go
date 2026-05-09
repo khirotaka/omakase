@@ -20,7 +20,10 @@ func TestRedisClient_RPOP_WithItem(t *testing.T) {
 			t.Errorf("missing or wrong Authorization header: %s", r.Header.Get("Authorization"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"result":"{\"type\":\"issue\",\"issueNumber\":42,\"repoOwner\":\"khirotaka\",\"repoName\":\"omakase\",\"body\":\"hello\"}"}`)
+		_, err := fmt.Fprint(w, `{"result":"{\"type\":\"issue\",\"issueNumber\":42,\"repoOwner\":\"khirotaka\",\"repoName\":\"omakase\",\"body\":\"hello\"}"}`)
+		if err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -46,9 +49,12 @@ func TestRedisClient_RPOP_WithItem(t *testing.T) {
 }
 
 func TestRedisClient_RPOP_EmptyQueue(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprint(w, `{"result":null}`)
+		_, err := fmt.Fprint(w, `{"result":null}`)
+		if err != nil {
+			t.Errorf("write response: %v", err)
+		}
 	}))
 	defer srv.Close()
 
@@ -63,7 +69,7 @@ func TestRedisClient_RPOP_EmptyQueue(t *testing.T) {
 }
 
 func TestRedisClient_RPOP_HTTPError(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	}))
 	defer srv.Close()
@@ -76,7 +82,7 @@ func TestRedisClient_RPOP_HTTPError(t *testing.T) {
 }
 
 func TestRedisClient_RPOP_ContextCancelled(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 		// deliberately never responds
 	}))
 	defer srv.Close()
