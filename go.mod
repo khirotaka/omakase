@@ -1,6 +1,6 @@
 module github.com/khirotaka/omakase
 
-go 1.24
+go 1.26
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.41.0
