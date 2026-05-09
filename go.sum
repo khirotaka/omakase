@@ -1,0 +1,3 @@
+github.com/anthropics/anthropic-sdk-go v1.41.0/go.mod h1:UgnI27pSnfj2Ux2iE6Dkq9o/3MZn0jdalFdQIdWMS+Q=
+github.com/google/go-github/v67 v67.0.0/go.mod h1:zH3K7BxjFndr9QSeFibx4lTKkYS3K9nDanoI1NjaOtY=
+golang.org/x/oauth2 v0.36.0/go.mod h1:YDBUJMTkDnJS+A4BP4eZBjCqtokkg1hODuPjwiGPO7Q=
