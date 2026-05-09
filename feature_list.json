@@ -51,7 +51,7 @@
       "Query Redis for key session:{issueNumber}",
       "Verify the session JSON contains status=developing, iteration=0, and branchName=agent/issue-{N}"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "state-management",
@@ -61,7 +61,7 @@
       "Call the session read function with the corresponding issue number",
       "Verify the returned struct matches the stored JSON"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "state-management",
@@ -72,7 +72,7 @@
       "Query Redis and confirm the new values are persisted",
       "Verify the TTL is still set to 24 hours"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "state-management",
