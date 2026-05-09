@@ -36,14 +36,14 @@ func main() {
 			slog.Info("agent shutting down")
 			return
 		case <-ticker.C:
-			if err := poll(ctx, redis); err != nil {
+			if err := poll(ctx, cfg, redis); err != nil {
 				slog.Error("poll error", "error", err)
 			}
 		}
 	}
 }
 
-func poll(ctx context.Context, redis *RedisClient) error {
+func poll(ctx context.Context, cfg *Config, redis *RedisClient) error {
 	slog.Info("polling queue", "queue", "agent-queue")
 
 	raw, err := redis.RPOP(ctx, "agent-queue")
@@ -70,21 +70,70 @@ func poll(ctx context.Context, redis *RedisClient) error {
 
 	switch task.Type {
 	case TaskTypeIssue:
-		sess, err := CreateSession(ctx, redis, task.IssueNumber)
-		if err != nil {
-			return fmt.Errorf("poll: create session: %w", err)
-		}
-		slog.Info("session created",
-			"issue_number", sess.IssueNumber,
-			"status", sess.Status,
-			"branch", sess.BranchName,
-		)
-		// TODO: dispatch to orchestrator for implementation (later feature)
+		return handleIssueTask(ctx, cfg, redis, task)
 	case TaskTypeReview:
-		return fmt.Errorf("poll: review task handling not yet implemented")
+		return handleReviewTask(ctx, cfg, redis, task)
 	default:
 		return fmt.Errorf("poll: unsupported task type %q", task.Type)
 	}
+}
 
+func handleIssueTask(ctx context.Context, cfg *Config, redis *RedisClient, task *Task) error {
+	_ = cfg
+	sess, err := CreateSession(ctx, redis, task.IssueNumber)
+	if err != nil {
+		return fmt.Errorf("handleIssueTask: create session: %w", err)
+	}
+	slog.Info("session created",
+		"issue_number", sess.IssueNumber,
+		"status", sess.Status,
+		"branch", sess.BranchName,
+	)
+	// TODO: implement code via LLM + sandbox, then call CreatePR and transition to review_pending
+	return nil
+}
+
+func handleReviewTask(ctx context.Context, cfg *Config, redis *RedisClient, task *Task) error {
+	sess, err := ReadSession(ctx, redis, task.IssueNumber)
+	if err != nil {
+		return fmt.Errorf("handleReviewTask: read session: %w", err)
+	}
+	if sess == nil {
+		return fmt.Errorf("handleReviewTask: no session found for issue %d", task.IssueNumber)
+	}
+
+	ghClient := newGitHubClient(ctx, cfg.GitHubToken)
+
+	if sess.Iteration >= cfg.MaxIteration {
+		sess.Status = StatusAborted
+		if uerr := UpdateSession(ctx, redis, sess); uerr != nil {
+			return fmt.Errorf("handleReviewTask: abort session: %w", uerr)
+		}
+		msg := fmt.Sprintf(
+			"Agent aborted: reached maximum iteration limit (%d). Please review and continue manually.",
+			cfg.MaxIteration,
+		)
+		if cerr := PostIssueComment(ctx, ghClient, task.RepoOwner, task.RepoName, task.IssueNumber, msg); cerr != nil {
+			slog.Error("failed to post abort comment", "error", cerr, "issue_number", task.IssueNumber)
+		}
+		slog.Info("session aborted: max iteration reached",
+			"issue_number", task.IssueNumber,
+			"iteration", sess.Iteration,
+			"max_iteration", cfg.MaxIteration,
+		)
+		return nil
+	}
+
+	sess.Status = StatusFixing
+	sess.Iteration++
+	if err := UpdateSession(ctx, redis, sess); err != nil {
+		return fmt.Errorf("handleReviewTask: update session to fixing: %w", err)
+	}
+	slog.Info("session transitioned to fixing",
+		"issue_number", sess.IssueNumber,
+		"iteration", sess.Iteration,
+		"review_body_len", len(task.Body),
+	)
+	// TODO: run fix cycle via LLM + sandbox, then push and transition to done
 	return nil
 }

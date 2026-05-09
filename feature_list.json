@@ -19,7 +19,7 @@
       "Confirm an LPUSH is executed against agent-queue with type=issue",
       "Confirm the payload contains issueNumber, repoOwner, repoName, and body"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -30,7 +30,7 @@
       "Verify the orchestrator logs show the task was dequeued",
       "Verify the queue is empty after dequeue"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -41,7 +41,7 @@
       "Confirm the payload is pushed to agent-queue with issueNumber and body fields",
       "Verify the orchestrator dequeues and identifies it as a review task"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "state-management",
@@ -92,7 +92,7 @@
       "Dequeue a review task for the same issue number",
       "Verify the session transitions to fixing and iteration increments by 1"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "state-management",
@@ -113,7 +113,7 @@
       "Trigger another review task for the same issue",
       "Verify the session status is set to aborted and the iteration is not incremented further"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -234,7 +234,7 @@
       "Verify a PR is created in the repository",
       "Confirm the returned PR number is stored in the session"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -244,7 +244,7 @@
       "Inspect the PR body",
       "Verify it contains Closes #{issueNumber} or Fixes #{issueNumber}"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -254,7 +254,7 @@
       "Verify the function returns the comment body without error",
       "Confirm the issueNumber and prNumber are also extracted correctly"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -287,7 +287,7 @@
       "Start the orchestrator",
       "Verify that on the 4th review task for the same session the orchestrator aborts instead of fixing"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -298,7 +298,7 @@
       "Verify a comment is posted to the GitHub Issue indicating the agent has aborted",
       "Confirm the session status is set to aborted"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "configuration",
@@ -309,7 +309,7 @@
       "Observe that polling occurs approximately every 5 seconds in logs",
       "Verify default of 30 seconds is used when the variable is not set"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "configuration",

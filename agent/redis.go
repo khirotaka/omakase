@@ -111,6 +111,38 @@ func (r *RedisClient) GET(ctx context.Context, key string) (string, error) {
 	return *result.Result, nil
 }
 
+// LPUSH prepends one value to the list at key.
+func (r *RedisClient) LPUSH(ctx context.Context, key, value string) error {
+	url := fmt.Sprintf("%s/lpush/%s", r.baseURL, url.PathEscape(key))
+
+	body, err := json.Marshal([]string{value})
+	if err != nil {
+		return fmt.Errorf("redis LPUSH: marshal: %w", err)
+	}
+
+	reqCtx, cancel := context.WithTimeout(ctx, redisRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(body)) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
+	if err != nil {
+		return fmt.Errorf("redis LPUSH: create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+r.token)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := r.httpClient.Do(req) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
+	if err != nil {
+		return fmt.Errorf("redis LPUSH: http: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("redis LPUSH: unexpected status %d: %s", resp.StatusCode, b)
+	}
+	return nil
+}
+
 // RPOP removes and returns the last element of the list at key.
 // Returns ("", nil) when the queue is empty.
 func (r *RedisClient) RPOP(ctx context.Context, key string) (string, error) {
