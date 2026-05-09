@@ -8,7 +8,7 @@
       "Observe that the orchestrator calls RPOP on agent-queue every POLL_INTERVAL_SEC seconds",
       "Verify a log entry is emitted each polling cycle even when the queue is empty"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
