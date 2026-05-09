@@ -123,7 +123,7 @@
       "Verify the Anthropic API is called with the issue text in the prompt",
       "Confirm the returned implementation plan is a non-empty string"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "functional",
@@ -133,7 +133,7 @@
       "Verify the Anthropic API is called with both the feedback and the existing code",
       "Confirm the returned fix plan is a non-empty string"
     ],
-    "passes": false
+    "passes": true
   },
   {
     "category": "integration",
