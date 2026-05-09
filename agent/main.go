@@ -104,6 +104,11 @@ func handleReviewTask(ctx context.Context, cfg *Config, redis *RedisClient, task
 		return fmt.Errorf("handleReviewTask: no session found for issue %d", task.IssueNumber)
 	}
 
+	if sess.Status != StatusReviewPending {
+		return fmt.Errorf("handleReviewTask: invalid state %q for issue %d; expected %q",
+			sess.Status, task.IssueNumber, StatusReviewPending)
+	}
+
 	ghClient := newGitHubClient(ctx, cfg.GitHubToken)
 
 	if sess.Iteration >= cfg.MaxIteration {

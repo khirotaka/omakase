@@ -27,6 +27,7 @@ func NewSandbox(ctx context.Context, templateName, namespace string) (*Sandbox, 
 	}
 
 	if err := sb.Open(ctx); err != nil {
+		_ = sb.Close(ctx)
 		return nil, fmt.Errorf("NewSandbox open: %w", err)
 	}
 
@@ -62,6 +63,22 @@ func (s *Sandbox) Write(ctx context.Context, filename string, content []byte) er
 	}
 
 	return nil
+}
+
+// RunSensitive executes a shell command but uses displayName in error messages
+// instead of the raw command, preventing credentials from appearing in logs.
+func (s *Sandbox) RunSensitive(ctx context.Context, cmd, displayName string) (string, error) {
+	result, err := s.sb.Run(ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("sandbox run %s: %w", displayName, err)
+	}
+
+	output := strings.TrimSpace(result.Stdout + result.Stderr)
+	if result.ExitCode != 0 {
+		return output, fmt.Errorf("sandbox run %s: exit code %d: %s", displayName, result.ExitCode, output)
+	}
+
+	return output, nil
 }
 
 // Read downloads the contents of a file at the given sandbox path.
