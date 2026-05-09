@@ -21,7 +21,7 @@ Makefile
 
 ## 開発ルール
 
-- `go 1.24` を使用
+- `go 1.26` を使用
 - モジュール名: `github.com/khirotaka/omakase`
 - エラーハンドリングは呼び出し元に委ねる（`fmt.Errorf("...: %w", err)`）
 - ログは `log/slog` を使用
