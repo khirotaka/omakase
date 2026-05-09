@@ -27,5 +27,11 @@ func parseTask(raw string) (*Task, error) {
 	if err := json.Unmarshal([]byte(raw), &t); err != nil {
 		return nil, fmt.Errorf("parseTask: %w", err)
 	}
+	if t.Type != TaskTypeIssue && t.Type != TaskTypeReview {
+		return nil, fmt.Errorf("parseTask: invalid task type %q", t.Type)
+	}
+	if t.IssueNumber == 0 || t.RepoOwner == "" || t.RepoName == "" {
+		return nil, fmt.Errorf("parseTask: missing required fields")
+	}
 	return &t, nil
 }
