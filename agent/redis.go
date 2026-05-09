@@ -7,9 +7,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
+
+const redisRequestTimeout = 10 * time.Second
 
 // RedisClient is a minimal Upstash Redis HTTP client.
 type RedisClient struct {
@@ -50,7 +53,10 @@ func (r *RedisClient) SET(ctx context.Context, key, value string, ttl time.Durat
 		return fmt.Errorf("redis SET: marshal command: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.baseURL, bytes.NewReader(body)) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
+	reqCtx, cancel := context.WithTimeout(ctx, redisRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, r.baseURL, bytes.NewReader(body)) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
 	if err != nil {
 		return fmt.Errorf("redis SET: create request: %w", err)
 	}
@@ -72,9 +78,12 @@ func (r *RedisClient) SET(ctx context.Context, key, value string, ttl time.Durat
 
 // GET returns the value stored at key, or "" if the key does not exist.
 func (r *RedisClient) GET(ctx context.Context, key string) (string, error) {
-	url := fmt.Sprintf("%s/get/%s", r.baseURL, key)
+	url := fmt.Sprintf("%s/get/%s", r.baseURL, url.PathEscape(key))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
+	reqCtx, cancel := context.WithTimeout(ctx, redisRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, url, nil) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
 	if err != nil {
 		return "", fmt.Errorf("redis GET: create request: %w", err)
 	}
@@ -105,9 +114,12 @@ func (r *RedisClient) GET(ctx context.Context, key string) (string, error) {
 // RPOP removes and returns the last element of the list at key.
 // Returns ("", nil) when the queue is empty.
 func (r *RedisClient) RPOP(ctx context.Context, key string) (string, error) {
-	url := fmt.Sprintf("%s/rpop/%s", r.baseURL, key)
+	url := fmt.Sprintf("%s/rpop/%s", r.baseURL, url.PathEscape(key))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, nil) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
+	reqCtx, cancel := context.WithTimeout(ctx, redisRequestTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, nil) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
 	if err != nil {
 		return "", fmt.Errorf("redis RPOP: create request: %w", err)
 	}

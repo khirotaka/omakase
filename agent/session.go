@@ -34,7 +34,16 @@ func sessionKey(issueNumber int) string {
 }
 
 // CreateSession stores a new AgentSession in Redis with status=developing and TTL=24h.
+// Returns an error if a session already exists for the issue.
 func CreateSession(ctx context.Context, redis *RedisClient, issueNumber int) (*AgentSession, error) {
+	existing, err := ReadSession(ctx, redis, issueNumber)
+	if err != nil {
+		return nil, fmt.Errorf("CreateSession: check existing: %w", err)
+	}
+	if existing != nil {
+		return nil, fmt.Errorf("CreateSession: session already exists for issue %d", issueNumber)
+	}
+
 	sess := &AgentSession{
 		IssueNumber: issueNumber,
 		Status:      StatusDeveloping,
@@ -75,6 +84,9 @@ func ReadSession(ctx context.Context, redis *RedisClient, issueNumber int) (*Age
 
 // UpdateSession persists an updated AgentSession back to Redis, resetting the TTL to 24h.
 func UpdateSession(ctx context.Context, redis *RedisClient, sess *AgentSession) error {
+	if sess == nil {
+		return fmt.Errorf("UpdateSession: session is nil")
+	}
 	data, err := json.Marshal(sess)
 	if err != nil {
 		return fmt.Errorf("UpdateSession: marshal: %w", err)

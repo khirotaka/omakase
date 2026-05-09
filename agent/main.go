@@ -81,7 +81,9 @@ func poll(ctx context.Context, redis *RedisClient) error {
 		)
 		// TODO: dispatch to orchestrator for implementation (later feature)
 	case TaskTypeReview:
-		// TODO: handle review task (later feature)
+		return fmt.Errorf("poll: review task handling not yet implemented")
+	default:
+		return fmt.Errorf("poll: unsupported task type %q", task.Type)
 	}
 
 	return nil
