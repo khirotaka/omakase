@@ -18,7 +18,7 @@ tasks:
   cluster:create:
     cmds:
       - kind create cluster --name {{ .CLUSTER }} --config kind-config.yaml
-      - kubectl create namespace {{ .NAMESPACE }}
+      - kubectl create namespace {{ .NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
 
   cluster:apply-sandbox-template:
     dir: k8s
@@ -45,7 +45,7 @@ tasks:
       - tk apply environments/default
 
   secret:create:
-    cmd: kubectl create secret generic omakase -n {{ .NAMESPACE }} --from-env-file=.env
+    cmd: kubectl create secret generic omakase -n {{ .NAMESPACE }} --from-env-file=.env --dry-run=client -o yaml | kubectl apply -f -
 
   secret:delete:
     cmd: kubectl delete secret omakase -n {{ .NAMESPACE }}
