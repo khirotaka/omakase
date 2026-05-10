@@ -1,0 +1,27 @@
+{
+    "cSpell.words": [
+        "buildx",
+        "Jsonnet",
+        "khirotaka",
+        "ksonnet",
+        "libsonnet",
+        "omakase",
+        "taskfile"
+    ],
+    "jsonnet.languageServer.eval": true,
+    "jsonnet.languageServer.lint": true,
+    "[jsonnet]": {
+        "editor.defaultFormatter": "Grafana.vscode-jsonnet",
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    },
+    "[go]": {
+        "editor.insertSpaces": false,
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        }
+    }
+}

@@ -1,0 +1,9 @@
+# Created by https://www.toptal.com/developers/gitignore/api/jsonnet
+# Edit at https://www.toptal.com/developers/gitignore?templates=jsonnet
+
+### Jsonnet ###
+# Dependency directories
+vendor/
+
+
+# End of https://www.toptal.com/developers/gitignore/api/jsonnet

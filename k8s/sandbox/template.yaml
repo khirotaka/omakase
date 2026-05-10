@@ -1,0 +1,27 @@
+apiVersion: extensions.agents.x-k8s.io/v1alpha1
+kind: SandboxTemplate
+metadata:
+  name: coding-agent-sandbox
+  namespace: default
+spec:
+  podTemplate:
+    spec:
+      containers:
+      - name: coding-agent-sandbox
+        image: golang:1.26
+        command: ["sleep", "infinity"]
+        workingDir: /workspace
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        volumeMounts:
+        - name: workspace
+          mountPath: /workspace
+      volumes:
+      - name: workspace
+        emptyDir: {}
+      restartPolicy: Never

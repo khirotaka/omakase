@@ -1,0 +1,6 @@
+{
+    "recommendations": [
+        "grafana.vscode-jsonnet",
+        "task.vscode-task"
+    ]
+}
