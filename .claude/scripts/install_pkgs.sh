@@ -13,5 +13,6 @@ go mod download
 
 # Install golangci-lint built with Go 1.26 to match the project's Go version.
 # The pre-installed binary is built with Go 1.25 and fails to lint Go 1.26 code.
-GOTOOLCHAIN=go1.26.0 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+GOTOOLCHAIN=go1.26.3 go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+GOTOOLCHAIN=go1.26.3 go install golang.org/x/tools/gopls@latest
 cp "$(go env GOPATH)/bin/golangci-lint" /usr/local/bin/golangci-lint
