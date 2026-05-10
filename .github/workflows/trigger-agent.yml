@@ -27,10 +27,10 @@ jobs:
             --arg repoName "$REPO_NAME" \
             --arg body "$ISSUE_BODY" \
             '{type: $type, issueNumber: $issueNumber, repoOwner: $repoOwner, repoName: $repoName, body: $body}')
-          curl -sf -X POST "${UPSTASH_REDIS_URL}/lpush/agent-queue" \
+          curl -sf -X POST "${UPSTASH_REDIS_URL}" \
             -H "Authorization: Bearer ${UPSTASH_REDIS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "$(jq -cn --arg v "$TASK" '[$v]')"
+            -d "$(jq -cn --arg task "$TASK" '["LPUSH","agent-queue",$task]')"
 
       - name: Enqueue review task
         if: github.event_name == 'pull_request_review_comment' && github.event.comment.user.login == 'coderabbitai[bot]'
@@ -54,7 +54,7 @@ jobs:
             --arg repoName "$REPO_NAME" \
             --arg body "$COMMENT_BODY" \
             '{type: $type, issueNumber: $issueNumber, repoOwner: $repoOwner, repoName: $repoName, body: $body}')
-          curl -sf -X POST "${UPSTASH_REDIS_URL}/lpush/agent-queue" \
+          curl -sf -X POST "${UPSTASH_REDIS_URL}" \
             -H "Authorization: Bearer ${UPSTASH_REDIS_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "$(jq -cn --arg v "$TASK" '[$v]')"
+            -d "$(jq -cn --arg task "$TASK" '["LPUSH","agent-queue",$task]')"

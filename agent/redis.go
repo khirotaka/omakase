@@ -112,18 +112,18 @@ func (r *RedisClient) GET(ctx context.Context, key string) (string, error) {
 }
 
 // LPUSH prepends one value to the list at key.
+// Uses the Upstash command-in-body format to safely handle JSON values.
 func (r *RedisClient) LPUSH(ctx context.Context, key, value string) error {
-	url := fmt.Sprintf("%s/lpush/%s", r.baseURL, url.PathEscape(key))
-
-	body, err := json.Marshal([]string{value})
+	cmd := []any{"LPUSH", key, value}
+	body, err := json.Marshal(cmd)
 	if err != nil {
-		return fmt.Errorf("redis LPUSH: marshal: %w", err)
+		return fmt.Errorf("redis LPUSH: marshal command: %w", err)
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, redisRequestTimeout)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewReader(body)) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, r.baseURL, bytes.NewReader(body)) //nolint:gosec // URL is from trusted config (UPSTASH_REDIS_URL)
 	if err != nil {
 		return fmt.Errorf("redis LPUSH: create request: %w", err)
 	}
