@@ -1,291 +1,231 @@
 # Omakase
 
-GitHub Issue を起点に、AI Agent が自律的にコードを実装して Pull Request を作成し、CodeRabbit のレビューフィードバックを受けて修正するまでを自動化するシステムです。
+> An autonomous agent that turns GitHub Issues into reviewed pull requests — LLM-driven implementation, CodeRabbit feedback handling, and iterative fixes — with no inbound network endpoint required.
 
-## システム概要
+[日本語版 README](./README.ja.md) · [Full setup guide → HOW_TO_USE.md](./HOW_TO_USE.md)
 
-```
-開発対象リポジトリ側                      本システム
-─────────────────────────────────      ─────────────────────────────
+## Overview
 
-GitHub Issue が作成される
-       │
-       │ GitHub Actions
-       │  trigger-agent.yml
-       ▼
-  Upstash Redis ─────────────────────▶  Agent Orchestrator (Go)
-  (agent-queue)                               │
-                                             ├─ agent-sandbox (k8s-sigs)
-                                             │   コード実装・テスト
-                                             │
-                                             └─ GitHub API
-                                                 PR 作成
-                                                    │
-                                             CodeRabbit レビュー
-                                                    │ webhook
-                                             GitHub Actions
-                                          trigger-agent.yml
-                                                    │
-                                              Upstash Redis ──▶ Agent 修正ループ
-```
+Omakase watches a GitHub repository for new Issues. When one is opened, it:
 
-**特徴**
+1. Uses a Claude LLM (via the Anthropic API) to generate an implementation plan and Go code.
+2. Runs `go build` and `go test` inside a gVisor-isolated Kubernetes sandbox.
+3. Pushes a feature branch and opens a pull request.
+4. Listens for CodeRabbit review comments and pushes iterative fixes until the PR is clean or the iteration limit is reached.
 
-- ローカルマシンへのインバウンド通信が不要（kind クラスタはポーリング型）
-- 外部サービスは Upstash Redis のみ（キュー + セッション管理を兼用）
-- GitHub Actions が仲介役となり、Webhook サーバーの運用が不要
+The agent runs in a local [kind](https://kind.sigs.k8s.io/) cluster and only makes outbound connections — no inbound webhook server is required. [Upstash Redis](https://upstash.com/) serves as the task queue and session store; a GitHub Actions workflow in the *target* repository pushes events to Redis whenever an issue or CodeRabbit comment appears.
 
-## アーキテクチャ
+## How it works
 
-```
-┌─────────────────────────────────────────────────────────┐
-│  ローカルマシン                                           │
-│                                                         │
-│  ┌──────────────────────────────────────────────────┐  │
-│  │  kind クラスタ                                    │  │
-│  │                                                  │  │
-│  │  ┌─────────────────┐    ┌────────────────────┐  │  │
-│  │  │ Agent Pod        │    │ agent-sandbox Pod  │  │  │
-│  │  │                  │    │                    │  │  │
-│  │  │  Orchestrator    │───▶│  gVisor (runsc)    │  │  │
-│  │  │  (Go)            │    │  git clone         │  │  │
-│  │  │                  │    │  コード実装         │  │  │
-│  │  │  - Redis Poll    │    │  go test           │  │  │
-│  │  │  - LLM 呼び出し  │    │  git push          │  │  │
-│  │  │  - Session 管理  │    │                    │  │  │
-│  │  │  - GitHub API    │    └────────────────────┘  │  │
-│  │  └─────────────────┘                             │  │
-│  └──────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────┘
-          │ RPOP / SET / GET              │ HTTPS
-          ▼                              ▼
-   Upstash Redis                   Anthropic API
-   (Queue + Session)               GitHub API
+```mermaid
+flowchart LR
+    subgraph TR["Target Repository"]
+        direction TB
+        Issue["New GitHub Issue"]
+        PR["Pull Request<br>agent/issue-N branch"]
+        CRB["CodeRabbit<br>review comment"]
+    end
+
+    subgraph GA["GitHub Actions (target repo)"]
+        WF["trigger-agent.yml"]
+    end
+
+    subgraph OS["Omakase  —  kind cluster"]
+        direction TB
+        Queue[("Upstash Redis<br>agent-queue")]
+        Orch["Agent Orchestrator<br>(Go)"]
+        SB["agent-sandbox<br>(gVisor)"]
+    end
+
+    Issue -->|"issues: opened"| WF
+    WF -->|"LPUSH issue task"| Queue
+    Queue -->|"RPOP"| Orch
+    Orch -->|"agent-sandbox SDK"| SB
+    SB -->|"git push"| PR
+    Orch -->|"create PR"| PR
+    PR -->|"auto-review"| CRB
+    CRB -->|"pull_request_review_comment"| WF
+    WF -->|"LPUSH review task"| Queue
 ```
 
-## 処理フロー
+## Architecture
 
-### Phase 1: Issue 受信 → 実装
+```mermaid
+flowchart TB
+    subgraph LM["Local Machine"]
+        subgraph KC["kind cluster  (namespace: omakase)"]
+            AP["Agent Pod<br>Orchestrator (Go)<br>─ Redis polling<br>─ LLM calls<br>─ Session management<br>─ GitHub API"]
+            SP["agent-sandbox Pod<br>(gVisor / runsc)<br>─ git clone / push<br>─ code implementation<br>─ go build / test"]
+            AP -->|"agent-sandbox SDK"| SP
+        end
+    end
 
-1. GitHub Issue 作成
-2. GitHub Actions (`trigger-agent.yml`) が起動
-3. Upstash Redis の `agent-queue` に LPUSH
-4. Agent Orchestrator が RPOP でキューを取得
-5. セッションを Redis に作成 (`status: developing`)
-6. agent-sandbox を起動
-7. LLM (Anthropic API) に issue 内容を渡して実装計画を生成
-8. sandbox 内で実装・テストを繰り返す
-9. feature ブランチを push
-10. GitHub API で PR を作成
-11. セッションを更新 (`status: review_pending`)
+    Redis[("Upstash Redis<br>Queue + Session<br>(HTTPS REST)")]
+    Anthropic["Anthropic API<br>Claude"]
+    GitHub["GitHub API<br>PR · Issues · git"]
 
-### Phase 2: CodeRabbit レビュー → 修正
+    AP <-->|"RPOP / SET / GET"| Redis
+    AP <-->|"LLM inference"| Anthropic
+    AP <-->|"PR / issue ops"| GitHub
+    SP -->|"git push"| GitHub
+```
 
-12. CodeRabbit が PR をレビュー
-13. レビューコメントが付くと GitHub Actions が起動（`pull_request_review_comment`: `coderabbitai[bot]` を検知）
-14. フィードバック内容を Upstash Redis にエンキュー
-15. Agent Orchestrator がキューを取得
-16. セッションを更新 (`status: fixing`, `iteration: N+1`)
-17. LLM にフィードバックと既存コードを渡して修正方針を生成
-18. sandbox 内で修正・テストを実施
-19. ブランチに push（PR は自動更新）
-20. iteration が上限（デフォルト: 5）に達した場合は Issue にコメントして終了
+## Processing flow
 
-## コンポーネント
+### Phase 1 — Issue → Implementation → PR
+
+1. A GitHub Issue is opened on the target repository.
+2. The `trigger-agent.yml` Actions workflow runs and pushes an `issue` task to `agent-queue`.
+3. The Agent Orchestrator pops the task and creates a Redis session (`status: developing`).
+4. An `agent-sandbox` pod is launched from the `SandboxTemplate`.
+5. The LLM generates an implementation plan and Go code.
+6. Inside the sandbox: `git clone` → write code → `go build` → `go test` → `git push origin agent/issue-N`.
+7. A pull request is opened via the GitHub API (title: `feat: implement issue #N`, closes the issue, base: `main`).
+8. Session is updated to `status: review_pending`.
+
+### Phase 2 — CodeRabbit review → Fix
+
+9. CodeRabbit automatically reviews the PR and posts inline comments.
+10. Each comment from `coderabbitai[bot]` triggers the `trigger-agent.yml` workflow again.
+11. A `review` task is pushed to `agent-queue`.
+12. The Orchestrator dequeues it, increments the iteration counter, and transitions the session to `fixing`.
+13. A new sandbox pod is launched; the fix is applied, tested, and pushed.
+14. Session transitions to `done`. If `iteration > MAX_ITERATION`, the session is set to `aborted` and a comment is posted on the issue.
+
+## AgentSession lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> developing : issue task dequeued
+    developing --> review_pending : PR created
+    review_pending --> fixing : review task dequeued
+    fixing --> review_pending : fix failed (rollback)
+    fixing --> done : fix pushed
+    fixing --> aborted : MAX_ITERATION reached
+    done --> [*]
+    aborted --> [*]
+```
+
+## Components
 
 ### Agent Orchestrator
 
-Agent システムの中核となる Go アプリケーションです。
+The core Go application. Responsibilities:
 
-**責務**
+- Polls Upstash Redis every `POLL_INTERVAL_SEC` seconds (default: 30).
+- Manages `AgentSession` lifecycles stored in Redis (`session:{issueNumber}`, TTL: 24 h).
+- Calls the Anthropic API to generate implementation plans and code fixes.
+- Launches and communicates with `agent-sandbox` pods.
+- Creates pull requests and posts issue comments via the GitHub API.
 
-- Upstash Redis のポーリング（デフォルト: 30 秒間隔）
-- AgentSession のライフサイクル管理
-- Anthropic API を通じた LLM 呼び出し
-- agent-sandbox の起動・操作・終了
-- GitHub API を通じた PR の作成・更新
-
-**AgentSession のステート遷移**
+### Redis schema
 
 ```
-[developing] ──▶ [review_pending] ──▶ [fixing] ──▶ [done]
-                                         │
-                                         └──▶ [aborted]  ← iteration 上限超過
-```
+# Task queue (List)
+agent-queue
+  LPUSH payload: {"type": "issue"|"review", "issueNumber": 42, "repoOwner": "...", "repoName": "...", "body": "..."}
 
-### Redis スキーマ
-
-```
-# キュー
-agent-queue  (List)
-  LPUSH payload: {"type": "issue"|"review", "issueNumber": 42, ...}
-
-# セッション
-session:{issueNumber}  (String / JSON, TTL: 24h)
-  {
-    "status":     "developing",
-    "branchName": "agent/issue-42",
-    "prNumber":   null,
-    "iteration":  0,
-    "sandboxId":  "xxx-yyy-zzz"
-  }
+# Session (String/JSON, TTL: 24 h)
+session:{issueNumber}
+  {"issueNumber": 42, "status": "developing", "branchName": "agent/issue-42",
+   "prNumber": null, "iteration": 0, "generatedFile": "feature.go"}
 ```
 
 ### agent-sandbox
 
-[kubernetes-sigs/agent-sandbox](https://agent-sandbox.sigs.k8s.io/docs/go-client/) によって提供される、gVisor (runsc) で隔離された Kubernetes Pod 上でコードを安全に実行する環境です。
+[kubernetes-sigs/agent-sandbox](https://agent-sandbox.sigs.k8s.io/docs/go-client/) provides a gVisor-isolated Kubernetes pod where code is executed safely. The Orchestrator uses three primary operations:
 
-**Orchestrator からの主な操作**
-
-| 操作 | 内容 |
+| Operation | Purpose |
 | --- | --- |
-| `sb.Run(ctx, "command string")` | シェルコマンドの実行（git, go test など） |
-| `sb.Write(ctx, "filename", []byte)` | LLM が生成したコードの書き込み。パスを含むファイル名はエラーになるため、mkdir → Write（ファイル名のみ）→ mv の3ステップが必要 |
-| `sb.Read(ctx, "filename")` | 既存コードの読み込み（LLM への入力） |
+| `sb.Run(ctx, "command")` | Run shell commands (`git`, `go test`, etc.) |
+| `sb.Write(ctx, "filename", []byte)` | Write LLM-generated code (filename only, no path) |
+| `sb.Read(ctx, "filename")` | Read existing code for LLM context |
 
-**sandbox 内で行われる処理**
-
-```bash
-git clone <repo-url> /workspace
-# LLM が生成したコードを Write で配置
-go build ./...
-go test ./...
-git add .
-git commit -m "feat: implement issue #42"
-git push origin agent/issue-42
-```
-
-## ディレクトリ構成
+## Repository layout
 
 ```
 omakase/
+├── .github/
+│   └── workflows/
+│       ├── trigger-agent.yml   # Event → Redis bridge (copy to target repo)
+│       ├── release.yml         # Builds and pushes ghcr.io image on tags
+│       └── test.yml            # CI tests
 ├── agent/
-│   ├── main.go               # エントリーポイント・ポーリングループ
-│   ├── orchestrator.go       # AgentSession のライフサイクル管理
-│   ├── llm.go                # Anthropic API クライアント
-│   ├── sandbox.go            # agent-sandbox クライアントラッパー
-│   ├── github.go             # GitHub API クライアント
-│   └── redis.go              # Upstash Redis クライアント
+│   ├── main.go                 # Entry point, polling loop
+│   ├── orchestrator.go         # AgentSession lifecycle
+│   ├── session.go              # Session state (Redis)
+│   ├── task.go                 # Task types
+│   ├── config.go               # Environment variable loading
+│   ├── llm.go                  # Anthropic API client
+│   ├── sandbox.go              # agent-sandbox client wrapper
+│   ├── github.go               # GitHub API client
+│   └── redis.go                # Upstash Redis REST client
 ├── k8s/
-│   ├── kind-config.yaml      # kind クラスタ設定
-│   ├── agent-deployment.yaml # Agent Pod
-│   └── sandbox-rbac.yaml     # agent-sandbox 用 RBAC
+│   ├── environments/
+│   │   └── default/            # Tanka environment (Deployment spec)
+│   ├── sandbox/
+│   │   └── template.yaml       # SandboxTemplate: coding-agent-sandbox
+│   └── lib/                    # Jsonnet libraries
 ├── Dockerfile
-├── Makefile                  # クラスタ起動・デプロイのショートカット
-└── README.md
+├── Taskfile.yml                 # Cluster and deploy shortcuts (use `task`)
+├── kind-config.yaml             # Single-node kind cluster config
+├── feature_list.json            # Acceptance test spec (manual checklist)
+├── go.mod
+└── go.sum
 ```
 
-## 技術スタック
+## Tech stack
 
-| カテゴリ | 技術 | 備考 |
+| Category | Technology | Notes |
 | --- | --- | --- |
-| 言語 | Go | Orchestrator 本体 |
-| コンテナ | kind | ローカル Kubernetes クラスタ |
-| 実行環境 | kubernetes-sigs/agent-sandbox | gVisor による隔離 |
-| LLM | Anthropic API (claude-sonnet-4-5) | コード生成・修正方針 |
-| キュー | Upstash Redis (List) | HTTP REST API で操作 |
-| セッション | Upstash Redis (String/JSON) | キューと兼用 |
-| VCS 操作 | sandbox 内 git コマンド | |
-| GitHub 連携 | GitHub API (go-github) | PR 作成・更新 |
-| レビュー | CodeRabbit | GitHub App としてインストール |
+| Language | Go | Agent Orchestrator |
+| Container runtime | kind | Local Kubernetes cluster |
+| Sandbox | kubernetes-sigs/agent-sandbox | gVisor isolation |
+| LLM | Anthropic API (Claude) | Code generation and fixes |
+| Queue | Upstash Redis (List) | HTTP REST API, no binary protocol |
+| Session | Upstash Redis (String/JSON) | Shared instance with queue |
+| VCS ops | git inside sandbox | clone, commit, push |
+| GitHub integration | go-github | PR creation, issue comments |
+| Code review | CodeRabbit | GitHub App installed on target repo |
+| Deployment | Tanka (jsonnet) | `tk apply environments/default` |
 
-## 外部サービス
+## External services
 
-| サービス | 用途 | 無料枠 |
+| Service | Purpose | Free tier |
 | --- | --- | --- |
-| Upstash Redis | キュー・セッション管理 | 10,000 cmd/day, 256 MB |
-| Anthropic API | LLM（コード生成・修正） | 従量課金 |
-| GitHub | Issue / PR / Actions | Public リポジトリは無料 |
-| CodeRabbit | PR 自動レビュー | OSS は無料 |
+| [Upstash Redis](https://upstash.com/) | Task queue + session store | 10,000 cmds/day, 256 MB |
+| [Anthropic API](https://www.anthropic.com/) | LLM (code generation, fixes) | Pay-per-use |
+| GitHub | Issues, PRs, Actions, git | Free for public repos |
+| [CodeRabbit](https://coderabbit.ai/) | Automated PR review | Free for OSS |
 
-> **ポーリング頻度について**: デフォルトの 30 秒間隔では約 2,880 cmd/day となり、Upstash 無料枠の範囲に収まります。セッション読み書きを含めても試作規模では余裕があります。
+> At the default 30-second polling interval the agent issues roughly 2,880 RPOP commands per day — well within the Upstash free tier.
 
-## 設定項目
+## Configuration
 
-Kubernetes Secret または環境変数で設定します。
+All configuration is via environment variables, provided to the agent pod through a Kubernetes Secret named `omakase`.
 
-```env
-# Anthropic
-ANTHROPIC_API_KEY=sk-ant-...
+### Required
 
-# Upstash Redis
-UPSTASH_REDIS_URL=https://xxxxx.upstash.io
-UPSTASH_REDIS_TOKEN=...
+| Variable | Description |
+| --- | --- |
+| `ANTHROPIC_API_KEY` | Anthropic API key |
+| `UPSTASH_REDIS_URL` | Upstash REST endpoint (`https://xxx.upstash.io`) |
+| `UPSTASH_REDIS_TOKEN` | Upstash REST bearer token |
+| `GITHUB_TOKEN` | GitHub PAT (Contents + PR + Issues read/write) |
+| `SANDBOX_TEMPLATE` | Name of the `SandboxTemplate` k8s resource (default setup: `coding-agent-sandbox`) |
 
-# GitHub
-GITHUB_TOKEN=ghp_...
-GITHUB_WEBHOOK_SECRET=...
+### Optional
 
-# Agent 動作設定
-POLL_INTERVAL_SEC=30   # ポーリング間隔（秒）
-MAX_ITERATION=5        # CodeRabbit フィードバックの最大修正回数
-```
+| Variable | Default | Description |
+| --- | --- | --- |
+| `SANDBOX_NAMESPACE` | `default` | Namespace to launch sandbox pods in |
+| `POLL_INTERVAL_SEC` | `30` | Redis polling interval in seconds |
+| `MAX_ITERATION` | `5` | Maximum CodeRabbit fix iterations before aborting |
 
-## 利用方法（テンプレートとして使う）
+## Getting started
 
-### 1. テンプレートから新規リポジトリを作成
+See [HOW_TO_USE.md](./HOW_TO_USE.md) for the complete end-to-end setup guide, covering prerequisites, local cluster deployment, and GitHub-side configuration (Actions workflow, repository secrets, CodeRabbit installation).
 
-GitHub の "Use this template" ボタンから新しいリポジトリを作成します。
+## License
 
-### 2. 開発対象リポジトリに GitHub Actions ワークフローを追加
-
-開発対象リポジトリ (`repo-B`) の `.github/workflows/trigger-agent.yml` に以下のワークフローを配置します。
-
-```yaml
-name: Trigger Agent
-on:
-  issues:
-    types: [opened]
-  pull_request_review_comment:
-    types: [created]
-
-jobs:
-  enqueue:
-    if: |
-      github.event_name == 'issues' ||
-      github.event.comment.user.login == 'coderabbitai[bot]'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Enqueue to Redis
-        env:
-          UPSTASH_REDIS_URL: ${{ secrets.UPSTASH_REDIS_URL }}
-          UPSTASH_REDIS_TOKEN: ${{ secrets.UPSTASH_REDIS_TOKEN }}
-        run: |
-          PAYLOAD=$(echo '${{ toJson(github.event) }}' | jq -c '{
-            type: (if env.GITHUB_EVENT_NAME == "issues" then "issue" else "review" end),
-            issueNumber: (.issue.number // .pull_request.number),
-            repoOwner: .repository.owner.login,
-            repoName: .repository.name,
-            body: (.issue.body // .comment.body)
-          }')
-          curl -s -X POST "$UPSTASH_REDIS_URL/lpush/agent-queue" \
-            -H "Authorization: Bearer $UPSTASH_REDIS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "[\"$PAYLOAD\"]"
-```
-
-### 3. Secret の設定
-
-```bash
-kubectl create secret generic agent-secrets \
-  --from-literal=ANTHROPIC_API_KEY=sk-ant-... \
-  --from-literal=UPSTASH_REDIS_URL=https://... \
-  --from-literal=UPSTASH_REDIS_TOKEN=... \
-  --from-literal=GITHUB_TOKEN=ghp_...
-```
-
-### 4. kind クラスタを起動してデプロイ
-
-```bash
-make cluster   # kind クラスタ作成
-make deploy    # Agent Pod のデプロイ
-make logs      # ログ確認
-```
-
-### 5. CodeRabbit を開発対象リポジトリにインストール
-
-[coderabbit.ai](https://coderabbit.ai/) から GitHub App をインストールします。OSS（Public リポジトリ）は無料で利用できます。
-
-## ライセンス
-
-MIT
+[Apache 2.0](./LICENSE)
