@@ -15,4 +15,4 @@ PROJECT_ROOT="$(git -C "$(dirname "$FILE_PATH")" rev-parse --show-toplevel 2>/de
 
 cd "$PROJECT_ROOT"
 
-golangci-lint run --fix ./... 2>/dev/null || true
+CGO_ENABLED=0 golangci-lint run --fix ./... 2>/dev/null || true
