@@ -2,10 +2,13 @@ module github.com/khirotaka/omakase
 
 go 1.26.2
 
+toolchain go1.26.3
+
 require (
 	github.com/anthropics/anthropic-sdk-go v1.41.0
 	github.com/google/go-github/v67 v67.0.0
 	golang.org/x/oauth2 v0.36.0
+	sigs.k8s.io/agent-sandbox v0.4.5
 )
 
 require (
@@ -82,7 +85,6 @@ require (
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
-	sigs.k8s.io/agent-sandbox v0.4.5 // indirect
 	sigs.k8s.io/controller-runtime v0.23.3 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
 	sigs.k8s.io/randfill v1.0.0 // indirect

@@ -1,0 +1,7 @@
+.claude/
+.git/
+.github/
+.vscode/
+k8s/
+*.md
+feature_list.json
