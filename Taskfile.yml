@@ -1,0 +1,51 @@
+version: "3"
+
+vars:
+  CLUSTER: omakase
+  NAMESPACE: omakase
+
+tasks:
+  default:
+    cmd: task --list
+
+  cluster:setup:
+    desc: 実行環境を準備する
+    cmds:
+      - task: cluster:create
+      - task: cluster:install-agent-sandbox
+      - task: cluster:apply-sandbox-template
+
+  cluster:create:
+    cmds:
+      - kind create cluster --name {{ .CLUSTER }} --config kind-config.yaml
+      - kubectl create namespace {{ .NAMESPACE }}
+
+  cluster:apply-sandbox-template:
+    dir: k8s
+    cmd: kubectl apply -f sandbox/template.yaml
+
+  cluster:delete:
+    desc: Kind のローカルクラスタを削除する
+    cmd: kind delete cluster --name {{ .CLUSTER }}
+
+  cluster:install-agent-sandbox:
+    env:
+      VERSION: v0.4.5
+    cmds:
+      # To install only the core components:
+      - kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${VERSION}/manifest.yaml
+      # To install the extensions components:
+      - kubectl apply -f https://github.com/kubernetes-sigs/agent-sandbox/releases/download/${VERSION}/extensions.yaml
+
+  deploy:
+    desc: ローカルクラスタにデプロイする
+    dir: k8s
+    cmds: 
+      - task: secret:create
+      - tk apply environments/default
+
+  secret:create:
+    cmd: kubectl create secret generic omakase -n {{ .NAMESPACE }} --from-env-file=.env
+
+  secret:delete:
+    cmd: kubectl delete secret omakase -n {{ .NAMESPACE }}
