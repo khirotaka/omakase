@@ -1,0 +1,13 @@
+{
+  "apiVersion": "tanka.dev/v1alpha1",
+  "kind": "Environment",
+  "metadata": {
+    "name": "environments/default"
+  },
+  "spec": {
+    "namespace": "omakase",
+    "resourceDefaults": {},
+    "expectVersions": {},
+    "apiServer": "https://127.0.0.1:6443"
+  }
+}
